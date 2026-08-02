@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import io
 from typing import Any
 
-import pandas as pd
 from sqlalchemy.orm import Session
 
 from ..models import Category, Product, StockLevel, Warehouse
@@ -22,7 +23,7 @@ COLUMN_MAP = {
 }
 
 
-def _find_column(df: pd.DataFrame, keys: list[str]) -> str | None:
+def _find_column(df: Any, keys: list[str]) -> str | None:
     cols_lower = {c.lower().strip(): c for c in df.columns}
     for key in keys:
         if key.lower() in cols_lower:
@@ -31,6 +32,8 @@ def _find_column(df: pd.DataFrame, keys: list[str]) -> str | None:
 
 
 def _safe_float(val: Any, default: float = 0.0) -> float:
+    import pandas as pd
+
     try:
         if pd.isna(val):
             return default
@@ -40,6 +43,8 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
 
 
 def import_products_from_excel(db: Session, file_bytes: bytes) -> dict:
+    import pandas as pd
+
     try:
         if file_bytes[:4] == b"PK\x03\x04":
             df = pd.read_excel(io.BytesIO(file_bytes))

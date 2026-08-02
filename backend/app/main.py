@@ -39,8 +39,12 @@ def seed_data():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    seed_data()
+    try:
+        Base.metadata.create_all(bind=engine)
+        seed_data()
+    except Exception as exc:
+        # Keep the API bootable on serverless even if seed/DB init fails once
+        print(f"Startup DB init warning: {exc}")
     yield
 
 

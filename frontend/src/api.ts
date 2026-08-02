@@ -4,7 +4,24 @@ function getToken() {
   return localStorage.getItem("token");
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+function formatDetail(detail: unknown): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          return String((item as { msg: unknown }).msg);
+        }
+        return "";
+      })
+      .filter(Boolean);
+    if (parts.length) return parts.join(" — ");
+  }
+  return "خطأ في الخادم";
+}
+
+async function request<T>(path: string, options: RequestInit = {}, authRedirect = true): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -14,25 +31,38 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${API}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, { ...options, headers });
+  } catch {
+    throw new Error("تعذر الاتصال بالخادم. تأكد أن Backend يعمل على المنفذ 8000");
+  }
+
   if (res.status === 401) {
-    localStorage.removeItem("token");
-    window.location.href = "/login";
-    throw new Error("Unauthorized");
+    if (authRedirect) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    }
+    const err = await res.json().catch(() => ({ detail: "اسم المستخدم أو كلمة المرور غير صحيحة" }));
+    throw new Error(formatDetail(err.detail));
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "خطأ في الخادم" }));
-    throw new Error(err.detail || "خطأ في الخادم");
+    throw new Error(formatDetail(err.detail));
   }
   return res.json();
 }
 
 export const api = {
   login: (username: string, password: string) =>
-    request<{ access_token: string }>("/auth/login/json", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    }),
+    request<{ access_token: string }>(
+      "/auth/login/json",
+      {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      },
+      false,
+    ),
 
   me: () => request<{ id: number; username: string; full_name: string; role: string }>("/auth/me"),
 
